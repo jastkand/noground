@@ -9,7 +9,8 @@ const split = ref(50)
 
 const beforeSrc = computed(() => convertFileSrc(props.before))
 const afterSrc = computed(() => convertFileSrc(props.after))
-const clipStyle = computed(() => ({ clipPath: `inset(0 ${100 - split.value}% 0 0)` }))
+// reveal the RIGHT of the divider (result side); original shows through on the left
+const clipStyle = computed(() => ({ clipPath: `inset(0 0 0 ${split.value}%)` }))
 
 function onPointerDown(e: PointerEvent) {
   container.value?.setPointerCapture(e.pointerId)
