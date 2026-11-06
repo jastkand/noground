@@ -127,11 +127,15 @@ async function regenerate() {
       <p v-if="store.single.skipped" class="notice panel">
         Result file already existed — showing it below, nothing was reprocessed.
       </p>
-      <CompareSlider :before="store.single.input!" :after="store.single.output" />
+      <CompareSlider
+        :before="store.single.input!"
+        :after="store.single.output"
+        :bust="store.single.version"
+      />
       <div class="actions">
         <button @click="revealItemInDir(store.single.output!)">Show in Finder</button>
         <button :class="{ primary: modelChanged || store.single.skipped }" @click="regenerate">
-          Re-generate
+          {{ modelChanged ? 'Apply new model' : 'Reprocess' }}
         </button>
         <button @click="startOver">Start over</button>
       </div>
@@ -139,7 +143,7 @@ async function regenerate() {
         {{ store.single.output }}
         <span v-if="store.single.model">
           · model: {{ modelLabel }}
-          <template v-if="modelChanged"> — changed in Settings, Re-generate to apply</template>
+          <template v-if="modelChanged"> — changed in Settings, apply to reprocess</template>
         </span>
       </p>
     </template>

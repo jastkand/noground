@@ -25,6 +25,7 @@ interface AppState {
     output: string | null
     skipped: boolean
     model: string | null
+    version: number
   }
   batch: {
     files: BatchFile[]
@@ -45,7 +46,7 @@ const state = reactive<AppState>({
   error: null,
   settings: null,
   job: { running: false, progress: null },
-  single: { input: null, output: null, skipped: false, model: null },
+  single: { input: null, output: null, skipped: false, model: null, version: 0 },
   batch: { files: [], outDir: null },
   models: [],
   download: { key: null, downloadedBytes: 0, totalBytes: null },

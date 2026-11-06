@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { convertFileSrc } from '@tauri-apps/api/core'
 
-const props = defineProps<{ before: string; after: string }>()
+const props = defineProps<{ before: string; after: string; bust?: number }>()
 
 const container = ref<HTMLElement | null>(null)
 const split = ref(50)
@@ -13,8 +13,10 @@ const containerW = ref(0)
 const mode = ref<'none' | 'divider' | 'pan'>('none')
 const last = ref({ x: 0, y: 0 })
 
-const beforeSrc = computed(() => convertFileSrc(props.before))
-const afterSrc = computed(() => convertFileSrc(props.after))
+// bust appends a query so overwritten outputs re-fetch instead of
+// coming back from the webview cache
+const beforeSrc = computed(() => `${convertFileSrc(props.before)}?v=${props.bust ?? 0}`)
+const afterSrc = computed(() => `${convertFileSrc(props.after)}?v=${props.bust ?? 0}`)
 const stageStyle = computed(() => ({
   transform: `translate(${tx.value}px, ${ty.value}px) scale(${scale.value})`,
 }))

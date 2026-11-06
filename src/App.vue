@@ -44,6 +44,8 @@ onMounted(async () => {
     const done = e.payload
     store.job.running = false
     store.job.progress = null
+    // bust the webview cache — overwritten outputs keep their path/URL
+    store.single.version = Date.now()
     if (store.route === 'single') {
       const written = done.outputs[0]?.output
       const skippedOut = done.skipped[0]?.output
