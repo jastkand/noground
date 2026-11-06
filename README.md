@@ -51,3 +51,12 @@ Notes:
 
 `testdata/player.png` is the sample jersey photo; `testdata/player-bria-ref.png` is the
 Python-rembg bria-rmbg reference cutout used by the parity test.
+
+## Assets & tooling
+
+- `assets/logo.svg` — minified logo source. The macOS icon is regenerated from it via the
+  Big Sur grid (1024 canvas, 824 artwork, 100px margins, 185px radius) rendered in headless
+  Chrome, then `npm run tauri icon <png>`.
+- `zoomtest/` — standalone Vite harness that mounts the real `CompareSlider` in a plain
+  browser (Tauri APIs stubbed) for headless-Chrome layout verification:
+  `npx vite --config zoomtest/vite.config.mjs serve`, then screenshot `http://localhost:1430`.
