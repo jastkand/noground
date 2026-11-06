@@ -155,11 +155,21 @@ function endDrag() {
     <span class="tag">original</span>
     <span class="tag right">noground</span>
     <div class="zoombar">
-      <button class="zb" title="Zoom out" @pointerdown.stop @click="zoomStep(1 / 1.25)">−</button>
+      <button class="zb" title="Zoom out" @pointerdown.stop @click="zoomStep(1 / 1.25)">
+        <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor"
+             stroke-width="1.6" stroke-linecap="round">
+          <path d="M1 5h8" />
+        </svg>
+      </button>
       <button class="zb pct" title="Reset zoom" @pointerdown.stop @click="resetZoom">
         {{ scaleLabel }}
       </button>
-      <button class="zb" title="Zoom in" @pointerdown.stop @click="zoomStep(1.25)">+</button>
+      <button class="zb" title="Zoom in" @pointerdown.stop @click="zoomStep(1.25)">
+        <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor"
+             stroke-width="1.6" stroke-linecap="round">
+          <path d="M1 5h8M5 1v8" />
+        </svg>
+      </button>
     </div>
   </div>
 </template>
@@ -269,8 +279,12 @@ function endDrag() {
 
 .zb {
   min-width: 28px;
-  padding: 3px 8px;
+  padding: 5px 8px;
   font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: color-mix(in srgb, var(--bg-deep) 85%, transparent);
   border-color: var(--border);
 }
