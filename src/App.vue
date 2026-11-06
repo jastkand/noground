@@ -108,12 +108,14 @@ async function handleDropped(paths: string[]) {
     store.batch.outDir = null
   } else {
     store.route = 'single'
-    store.single.input = null
+    store.single.input = entries[0]?.path ?? null
     store.single.output = null
+    store.job.running = true
   }
   try {
     await api.processPaths(entries.map((e) => e.path))
   } catch (e) {
+    store.job.running = false
     store.error = String(e)
   }
 }

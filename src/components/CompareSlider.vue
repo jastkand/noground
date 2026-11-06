@@ -9,6 +9,7 @@ const split = ref(50)
 
 const beforeSrc = computed(() => convertFileSrc(props.before))
 const afterSrc = computed(() => convertFileSrc(props.after))
+const clipStyle = computed(() => ({ clipPath: `inset(0 ${100 - split.value}% 0 0)` }))
 
 function onPointerDown(e: PointerEvent) {
   container.value?.setPointerCapture(e.pointerId)
@@ -37,13 +38,9 @@ function moveTo(e: PointerEvent) {
     @pointermove="onPointerMove"
   >
     <img class="layer" :src="beforeSrc" alt="original" draggable="false" />
-    <img
-      class="layer"
-      :src="afterSrc"
-      alt="background removed"
-      draggable="false"
-      :style="{ clipPath: `inset(0 ${100 - split}% 0 0)` }"
-    />
+    <!-- result side: checkerboard under the cutout so transparency reads as transparency -->
+    <div class="checker" :style="clipStyle"></div>
+    <img class="layer overlay" :src="afterSrc" alt="background removed" draggable="false" :style="clipStyle" />
     <div class="divider" :style="{ left: `${split}%` }">
       <div class="handle"></div>
     </div>
@@ -57,7 +54,7 @@ function moveTo(e: PointerEvent) {
   position: relative;
   width: 100%;
   background:
-    conic-gradient(from 90deg at 50% 50%, #23252b 25%, #2c2f37 0 50%, #23252b 0 75%, #2c2f37 0)
+    conic-gradient(from 90deg at 50% 50%, #343d44 25%, #3f4a52 0 50%, #343d44 0 75%, #3f4a52 0)
     0 0 / 24px 24px;
   border-radius: 10px;
   overflow: hidden;
@@ -74,9 +71,17 @@ function moveTo(e: PointerEvent) {
   user-select: none;
 }
 
-.layer + .layer {
+.layer.overlay {
   position: absolute;
   inset: 0;
+}
+
+.checker {
+  position: absolute;
+  inset: 0;
+  background:
+    conic-gradient(from 90deg at 50% 50%, #343d44 25%, #3f4a52 0 50%, #343d44 0 75%, #3f4a52 0)
+    0 0 / 24px 24px;
 }
 
 .divider {

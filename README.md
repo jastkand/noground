@@ -1,4 +1,4 @@
-# noground
+# Noground
 
 Local background removal for macOS. Drop an image (or a folder), get a transparent cutout —
 everything runs on-device, nothing leaves the Mac.
@@ -35,7 +35,7 @@ compare slider, batch progress with per-file status.
 npm install
 npm run tauri dev      # opens the app window
 cargo test             # parity test against the reference cutout (needs bria in ~/.rembg)
-npm run tauri build    # .app + dmg in target/release/bundle
+npm run tauri build    # Noground.app + dmg in target/release/bundle
 ```
 
 Notes:

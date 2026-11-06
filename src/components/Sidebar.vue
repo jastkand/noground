@@ -47,7 +47,7 @@ const items: { route: Route; label: string; icon: string }[] = [
 <style scoped>
 .sidebar {
   width: 64px;
-  background: var(--panel);
+  background: var(--bg-deep);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
