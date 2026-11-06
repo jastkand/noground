@@ -29,6 +29,16 @@ const previewSrc = computed(() =>
   store.single.input ? convertFileSrc(store.single.input) : null,
 )
 
+const modelChanged = computed(
+  () => !!store.single.model && !!store.settings?.model && store.settings.model !== store.single.model,
+)
+
+const modelLabel = computed(() => {
+  const key = store.single.model
+  if (!key) return ''
+  return store.models.find((m) => m.key === key)?.label ?? key
+})
+
 async function chooseImages() {
   const picked = await open({
     multiple: true,
@@ -41,6 +51,8 @@ async function chooseImages() {
   } else if (paths.length === 1) {
     store.single.input = paths[0]
     store.single.output = null
+    store.single.skipped = false
+    store.single.model = store.settings?.model ?? null
     store.job.running = true
   }
   try {
@@ -68,12 +80,16 @@ function startOver() {
   store.single.input = null
   store.single.output = null
   store.single.skipped = false
+  store.single.model = null
 }
 
-async function reprocess() {
+// re-run the current image with the current settings (new model, etc.);
+// one-shot overwrite so the previous result gets replaced
+async function regenerate() {
   if (!store.single.input) return
   store.single.output = null
   store.single.skipped = false
+  store.single.model = store.settings?.model ?? null
   store.job.running = true
   try {
     await api.processPaths([store.single.input], true)
@@ -114,10 +130,18 @@ async function reprocess() {
       <CompareSlider :before="store.single.input!" :after="store.single.output" />
       <div class="actions">
         <button @click="revealItemInDir(store.single.output!)">Show in Finder</button>
-        <button v-if="store.single.skipped" primary @click="reprocess">Reprocess</button>
-        <button primary @click="startOver">Start over</button>
+        <button :class="{ primary: modelChanged || store.single.skipped }" @click="regenerate">
+          Re-generate
+        </button>
+        <button @click="startOver">Start over</button>
       </div>
-      <p class="path muted">{{ store.single.output }}</p>
+      <p class="path muted">
+        {{ store.single.output }}
+        <span v-if="store.single.model">
+          · model: {{ modelLabel }}
+          <template v-if="modelChanged"> — changed in Settings, Re-generate to apply</template>
+        </span>
+      </p>
     </template>
 
     <div v-if="!store.single.input && !store.job.running" class="actions">

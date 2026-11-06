@@ -156,8 +156,8 @@ function endDrag() {
     <span class="tag right">noground</span>
     <div class="zoombar">
       <button class="zb" title="Zoom out" @pointerdown.stop @click="zoomStep(1 / 1.25)">
-        <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor"
-             stroke-width="1.6" stroke-linecap="round">
+        <svg viewBox="0 0 10 10" width="8" height="8" fill="none" stroke="currentColor"
+             stroke-width="1.4" stroke-linecap="round">
           <path d="M1 5h8" />
         </svg>
       </button>
@@ -165,8 +165,8 @@ function endDrag() {
         {{ scaleLabel }}
       </button>
       <button class="zb" title="Zoom in" @pointerdown.stop @click="zoomStep(1.25)">
-        <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor"
-             stroke-width="1.6" stroke-linecap="round">
+        <svg viewBox="0 0 10 10" width="8" height="8" fill="none" stroke="currentColor"
+             stroke-width="1.4" stroke-linecap="round">
           <path d="M1 5h8M5 1v8" />
         </svg>
       </button>

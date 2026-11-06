@@ -144,6 +144,7 @@ async function handleDropped(paths: string[]) {
     store.single.input = entries[0]?.path ?? null
     store.single.output = null
     store.single.skipped = false
+    store.single.model = store.settings?.model ?? null
     store.job.running = true
   }
   try {
