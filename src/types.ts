@@ -1,0 +1,58 @@
+export interface Settings {
+  model: string
+  outputDir: string | null
+  overwrite: boolean
+  format: 'png' | 'jpeg'
+}
+
+export interface PathEntry {
+  path: string
+  name: string
+  isDir: boolean
+}
+
+export type JobStage = 'model' | 'decode' | 'infer' | 'encode'
+
+export interface JobProgress {
+  stage: JobStage
+  index: number
+  total: number
+  file: string
+}
+
+export interface JobOutput {
+  input: string
+  output: string
+}
+
+export interface JobFailure {
+  input: string
+  message: string
+}
+
+export interface JobDone {
+  outputs: JobOutput[]
+  skipped: string[]
+  failed: JobFailure[]
+  cancelled: boolean
+  outDir: string | null
+}
+
+export interface ModelInfo {
+  key: string
+  label: string
+  approxBytes: number
+  installed: boolean
+}
+
+export type ModelState =
+  | { status: 'ready'; path: string }
+  | { status: 'in-progress' }
+  | { status: 'error'; message: string }
+
+export interface ModelDownloadProgress {
+  key: string
+  downloadedBytes: number
+  totalBytes: number | null
+  done: boolean
+}
