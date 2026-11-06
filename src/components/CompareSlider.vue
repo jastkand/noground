@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { convertFileSrc } from '@tauri-apps/api/core'
 
 const props = defineProps<{ before: string; after: string }>()
@@ -9,13 +9,12 @@ const split = ref(50)
 const scale = ref(1)
 const tx = ref(0)
 const ty = ref(0)
+const containerW = ref(0)
 const mode = ref<'none' | 'divider' | 'pan'>('none')
 const last = ref({ x: 0, y: 0 })
 
 const beforeSrc = computed(() => convertFileSrc(props.before))
 const afterSrc = computed(() => convertFileSrc(props.after))
-// reveal the RIGHT of the divider (result side); original shows through on the left
-const clipStyle = computed(() => ({ clipPath: `inset(0 0 0 ${split.value}%)` }))
 const stageStyle = computed(() => ({
   transform: `translate(${tx.value}px, ${ty.value}px) scale(${scale.value})`,
 }))
@@ -23,6 +22,27 @@ const scaleLabel = computed(() => (scale.value === 1 ? 'Fit' : `${Math.round(sca
 const cursor = computed(() =>
   mode.value === 'pan' ? 'grabbing' : scale.value > 1 ? 'grab' : 'ew-resize',
 )
+
+// The cutout half is clipped in the zoomer's LOCAL coordinates: map the
+// divider's screen x back through the transform. This keeps the clip edge
+// glued to the divider in every engine (no ancestor clip over a
+// transformed subtree — WebKit misrasterizes that pair).
+const cutoutClip = computed(() => {
+  const w = containerW.value
+  if (!w) return { clipPath: `inset(0 0 0 ${split.value}%)` }
+  const screenX = (split.value / 100) * w
+  const localX = (screenX - tx.value) / scale.value
+  return { clipPath: `inset(0 0 0 ${localX.toFixed(1)}px)` }
+})
+
+let observer: ResizeObserver | null = null
+onMounted(() => {
+  observer = new ResizeObserver(([entry]) => {
+    containerW.value = entry.contentRect.width
+  })
+  if (container.value) observer.observe(container.value)
+})
+onUnmounted(() => observer?.disconnect())
 
 function clampPan() {
   const rect = container.value?.getBoundingClientRect()
@@ -117,16 +137,20 @@ function endDrag() {
   >
     <div class="zoomer" :style="stageStyle">
       <img class="layer" :src="beforeSrc" alt="original" draggable="false" />
-    </div>
-    <!-- result side: checkerboard under the cutout so transparency reads as transparency -->
-    <div class="clipper" :style="clipStyle">
-      <div class="zoomer" :style="stageStyle">
+      <!-- cutout half, clipped in local coords so the edge rides on the divider -->
+      <div class="cutout" :style="cutoutClip">
         <div class="checker"></div>
         <img class="layer overlay" :src="afterSrc" alt="background removed" draggable="false" />
       </div>
     </div>
     <div class="divider" :style="{ left: `${split}%` }">
-      <div class="handle" title="Drag to compare" @pointerdown.stop="startDivider"></div>
+      <div class="handle" title="Drag to compare" @pointerdown.stop="startDivider">
+        <svg viewBox="0 0 14 10" width="13" height="9" fill="none" stroke="currentColor"
+             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 1 1 5l3 4" />
+          <path d="M10 1l3 4-3 4" />
+        </svg>
+      </div>
     </div>
     <span class="tag">original</span>
     <span class="tag right">noground</span>
@@ -167,18 +191,13 @@ function endDrag() {
   pointer-events: none;
 }
 
-.clipper {
-  position: absolute;
-  inset: 0;
-}
-
-.clipper .zoomer {
+.cutout {
   position: absolute;
   inset: 0;
 }
 
 .checker,
-.clipper .layer.overlay {
+.cutout .layer.overlay {
   position: absolute;
   inset: 0;
 }
@@ -189,7 +208,7 @@ function endDrag() {
     0 0 / 24px 24px;
 }
 
-.clipper .layer.overlay {
+.cutout .layer.overlay {
   width: 100%;
   height: 100%;
 }
@@ -217,14 +236,8 @@ function endDrag() {
   align-items: center;
   justify-content: center;
   color: var(--bg);
-  font-size: 12px;
   pointer-events: auto;
   cursor: ew-resize;
-}
-
-.handle::before {
-  content: '◀ ▶';
-  letter-spacing: -3px;
 }
 
 .tag {
