@@ -13,8 +13,9 @@ compare slider, batch progress with per-file status.
   linked into the binary at build time; there is no Python and nothing to bundle.
 - Models are the plain `.onnx` files from
   [rembg releases](https://github.com/danielgatis/rembg/releases) (tag `v0.0.0`), downloaded
-  on demand to `~/Library/Application Support/com.krivko.noground/models/<key>/<key>.onnx`,
-  checksum-pinned at download.
+  on demand (checksum-pinned) into a shared cache at
+  `/Users/Shared/noground/models/<key>/<key>.onnx` — one download serves every account on
+  the Mac. Falls back to per-user app data when `/Users/Shared` isn't writable.
 - The pre/post-processing (resize, per-image max normalization, mask postprocess, composite)
   is a faithful Rust port of rembg's session code — verified against Python rembg's bria
   output (`cargo test`): mean alpha diff 0.02/255, 99.97% of pixels within 8/255.

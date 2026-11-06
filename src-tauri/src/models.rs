@@ -1,10 +1,11 @@
 use std::{
+    os::unix::fs::PermissionsExt,
     path::PathBuf,
     sync::{atomic::Ordering, Arc},
     time::{Duration, Instant},
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use md5::Md5;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -91,10 +92,43 @@ pub fn spec(key: &str) -> Result<&'static ModelSpec> {
         .ok_or_else(|| anyhow!("unknown model: {key}"))
 }
 
-/// First existing location wins: our app-data cache, the rembg cache
-/// (probed read-only, same `<dir>/<key>/<key>.onnx` layout), legacy flat cache.
+/// Shared, cross-user model cache — this is a personal macOS app, and
+/// /Users/Shared is the standard world-writable location. One download then
+/// serves every account on the machine. Falls back to per-user app data
+/// when Shared isn't usable.
+fn models_root(app: &AppHandle) -> PathBuf {
+    let shared = PathBuf::from("/Users/Shared/noground/models");
+    if ensure_writable_dir(&shared) {
+        return shared;
+    }
+    app.path()
+        .app_data_dir()
+        .map(|d| d.join("models"))
+        .unwrap_or(shared)
+}
+
+fn ensure_writable_dir(dir: &std::path::Path) -> bool {
+    if std::fs::create_dir_all(dir).is_err() {
+        return false;
+    }
+    // The first creator owns the dir; open it up so other accounts can use it.
+    let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o777));
+    let probe = dir.join(".writable-probe");
+    let ok = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&probe)
+        .is_ok();
+    let _ = std::fs::remove_file(&probe);
+    ok
+}
+
+/// First existing location wins: the shared/per-user cache this app manages,
+/// the legacy app-data location, the rembg cache (probed read-only, same
+/// `<dir>/<key>/<key>.onnx` layout), legacy flat cache.
 pub fn resolve_model_path(app: &AppHandle, key: &str) -> Option<PathBuf> {
-    let mut candidates: Vec<PathBuf> = Vec::new();
+    let mut candidates: Vec<PathBuf> = vec![models_root(app).join(key).join(format!("{key}.onnx"))];
     if let Ok(app_data) = app.path().app_data_dir() {
         candidates.push(app_data.join("models").join(key).join(format!("{key}.onnx")));
     }
@@ -106,13 +140,7 @@ pub fn resolve_model_path(app: &AppHandle, key: &str) -> Option<PathBuf> {
 }
 
 fn download_target(app: &AppHandle, key: &str) -> Result<PathBuf> {
-    Ok(app
-        .path()
-        .app_data_dir()
-        .context("no app data dir")?
-        .join("models")
-        .join(key)
-        .join(format!("{key}.onnx")))
+    Ok(models_root(app).join(key).join(format!("{key}.onnx")))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -206,9 +234,12 @@ async fn download_model(
     let url = format!("{BASE_URL}/{}", spec.asset);
     let response = reqwest::get(&url).await?.error_for_status()?;
     let total_bytes = response.content_length();
-    let part = target.with_extension("onnx.part");
+    // pid suffix: two accounts downloading the same model into the shared
+    // cache must not fight over one .part file
+    let part = target.with_extension(format!("onnx.{}.part", std::process::id()));
     if let Some(dir) = target.parent() {
         tokio::fs::create_dir_all(dir).await?;
+        ensure_writable_dir(dir);
     }
 
     let mut hasher = PinHasher::new(spec);
@@ -253,6 +284,7 @@ async fn download_model(
     }
 
     tokio::fs::rename(&part, target).await?;
+    let _ = tokio::fs::set_permissions(target, std::fs::Permissions::from_mode(0o644)).await;
     let _ = app.emit(
         "noground://model-progress",
         ModelProgress {

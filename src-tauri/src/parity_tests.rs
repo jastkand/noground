@@ -6,9 +6,11 @@ use std::path::PathBuf;
 use crate::{imaging, models};
 
 fn cached_bria() -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
-    let path = home.join(".rembg/models/bria-rmbg/bria-rmbg.onnx");
-    path.exists().then_some(path)
+    let mut candidates = vec![PathBuf::from("/Users/Shared/noground/models/bria-rmbg/bria-rmbg.onnx")];
+    if let Some(home) = dirs::home_dir() {
+        candidates.push(home.join(".rembg/models/bria-rmbg/bria-rmbg.onnx"));
+    }
+    candidates.into_iter().find(|p| p.exists())
 }
 
 #[test]
