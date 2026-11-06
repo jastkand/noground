@@ -61,7 +61,7 @@ function openOutDir() {
 
     <div v-if="store.job.running" class="panel running">
       <ProgressBar :value="progressPct" :label="store.job.progress?.stage" />
-      <button class="danger" @click="cancel">Cancel</button>
+      <button class="compact" @click="cancel">Cancel</button>
     </div>
 
     <div v-if="hasFiles" class="list panel">

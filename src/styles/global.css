@@ -70,6 +70,11 @@ button.danger {
   background: transparent;
 }
 
+button.compact {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
 input[type="checkbox"] {
   accent-color: var(--accent);
 }

@@ -19,10 +19,10 @@ const progressPct = computed(() =>
 
 const stageLabel = computed(() => {
   const stage = store.job.progress?.stage
-  if (!stage || stage === 'decode') return 'reading image…'
-  if (stage === 'model') return 'loading model…'
-  if (stage === 'infer') return 'removing background…'
-  return 'saving…'
+  if (!stage || stage === 'decode') return 'Reading image…'
+  if (stage === 'model') return 'Loading model…'
+  if (stage === 'infer') return 'Removing background…'
+  return 'Saving…'
 })
 
 const previewSrc = computed(() =>
@@ -84,13 +84,13 @@ function startOver() {
       <div class="overlay">
         <div class="spinner"></div>
         <span>{{ stageLabel }}</span>
-        <button class="danger" @click="cancel">Cancel</button>
+        <button class="compact" @click="cancel">Cancel</button>
       </div>
     </div>
 
     <div v-else-if="store.job.running" class="panel running">
-      <ProgressBar :value="progressPct" label="preparing…" />
-      <button class="danger" @click="cancel">Cancel</button>
+      <ProgressBar :value="progressPct" label="Preparing…" />
+      <button class="compact" @click="cancel">Cancel</button>
     </div>
 
     <template v-else-if="store.single.output">
