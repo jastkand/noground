@@ -45,22 +45,55 @@ onMounted(async () => {
     store.job.running = false
     store.job.progress = null
     if (store.route === 'single') {
-      store.single.output = done.outputs[0]?.output ?? null
-      if (!store.single.output) {
+      const written = done.outputs[0]?.output
+      const skippedOut = done.skipped[0]?.output
+      if (written) {
+        store.single.output = written
+        store.single.skipped = false
+      } else if (skippedOut) {
+        // result file already existed — show it, flagged as not freshly processed
+        store.single.output = skippedOut
+        store.single.skipped = true
+      } else {
+        // nothing produced: back to the drop state, error banner carries the reason
+        store.single.input = null
         const failure = done.failed[0]
         if (failure) store.error = failure.message
       }
     } else {
-      const failedMap = new Map(done.failed.map((f) => [f.input, f.message]))
       const outputsMap = new Map(done.outputs.map((o) => [o.input, o.output]))
+      const failedMap = new Map(done.failed.map((f) => [f.input, f.message]))
+      const skippedMap = new Map(done.skipped.map((s) => [s.input, s.output]))
       for (const row of store.batch.files) {
         if (outputsMap.has(row.path)) {
           row.status = 'done'
+        } else if (skippedMap.has(row.path)) {
+          row.status = 'skipped'
+          row.message = 'result already exists'
         } else if (failedMap.has(row.path)) {
           row.status = 'failed'
           row.message = failedMap.get(row.path)
-        } else if (done.skipped.includes(row.path)) {
-          row.status = 'skipped'
+        }
+      }
+      // skipped files emit no progress events — backfill their rows
+      for (const s of done.skipped) {
+        if (!store.batch.files.some((r) => r.path === s.input)) {
+          store.batch.files.push({
+            path: s.input,
+            name: fileName(s.input),
+            status: 'skipped',
+            message: 'result already exists',
+          })
+        }
+      }
+      for (const f of done.failed) {
+        if (!store.batch.files.some((r) => r.path === f.input)) {
+          store.batch.files.push({
+            path: f.input,
+            name: fileName(f.input),
+            status: 'failed',
+            message: f.message,
+          })
         }
       }
       store.batch.outDir = done.outDir ?? store.batch.outDir
@@ -110,6 +143,7 @@ async function handleDropped(paths: string[]) {
     store.route = 'single'
     store.single.input = entries[0]?.path ?? null
     store.single.output = null
+    store.single.skipped = false
     store.job.running = true
   }
   try {

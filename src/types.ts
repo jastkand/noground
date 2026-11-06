@@ -30,9 +30,14 @@ export interface JobFailure {
   message: string
 }
 
+export interface JobSkipped {
+  input: string
+  output: string
+}
+
 export interface JobDone {
   outputs: JobOutput[]
-  skipped: string[]
+  skipped: JobSkipped[]
   failed: JobFailure[]
   cancelled: boolean
   outDir: string | null

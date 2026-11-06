@@ -40,9 +40,16 @@ struct JobFailure {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct SkippedOutput {
+    input: String,
+    output: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct JobDone {
     outputs: Vec<JobOutput>,
-    skipped: Vec<String>,
+    skipped: Vec<SkippedOutput>,
     failed: Vec<JobFailure>,
     cancelled: bool,
     out_dir: Option<String>,
@@ -50,7 +57,7 @@ struct JobDone {
 
 const IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "tif", "tiff", "bmp", "gif"];
 
-pub fn start_job(app: &AppHandle, paths: Vec<String>) -> Result<()> {
+pub fn start_job(app: &AppHandle, paths: Vec<String>, overwrite: Option<bool>) -> Result<()> {
     let state = app.state::<AppState>();
     if state.job_running.swap(true, Ordering::SeqCst) {
         return Err(anyhow!("a job is already running"));
@@ -60,7 +67,7 @@ pub fn start_job(app: &AppHandle, paths: Vec<String>) -> Result<()> {
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            run_job_inner(app.clone(), paths)
+            run_job_inner(app.clone(), paths, overwrite)
         }));
         app.state::<AppState>().job_running.store(false, Ordering::SeqCst);
         if result.is_err() {
@@ -73,8 +80,8 @@ pub fn start_job(app: &AppHandle, paths: Vec<String>) -> Result<()> {
     Ok(())
 }
 
-fn run_job_inner(app: AppHandle, paths: Vec<String>) {
-    if let Err(e) = run_job_fallible(&app, &paths) {
+fn run_job_inner(app: AppHandle, paths: Vec<String>, overwrite: Option<bool>) {
+    if let Err(e) = run_job_fallible(&app, &paths, overwrite) {
         let _ = app.emit(
             "noground://job-failed",
             serde_json::json!({ "message": e.to_string() }),
@@ -82,9 +89,10 @@ fn run_job_inner(app: AppHandle, paths: Vec<String>) {
     }
 }
 
-fn run_job_fallible(app: &AppHandle, paths: &[String]) -> Result<()> {
+fn run_job_fallible(app: &AppHandle, paths: &[String], overwrite: Option<bool>) -> Result<()> {
     let state = app.state::<AppState>();
     let settings: Settings = state.settings.lock().unwrap().clone();
+    let overwrite = overwrite.unwrap_or(settings.overwrite);
     let cancel = state.job_cancel.clone();
 
     let files = expand_inputs(paths)?;
@@ -121,7 +129,7 @@ fn run_job_fallible(app: &AppHandle, paths: &[String]) -> Result<()> {
 
     let total = files.len();
     let mut outputs: Vec<JobOutput> = Vec::new();
-    let mut skipped: Vec<String> = Vec::new();
+    let mut skipped: Vec<SkippedOutput> = Vec::new();
     let mut failed: Vec<JobFailure> = Vec::new();
 
     for (index, input) in files.iter().enumerate() {
@@ -142,6 +150,27 @@ fn run_job_fallible(app: &AppHandle, paths: &[String]) -> Result<()> {
         }
 
         let file_name = input.display().to_string();
+
+        // decide the output path before doing any work — an existing result
+        // skips instantly instead of after a full inference
+        let out_path = match compute_output_path(input, &batch_out_dir, &settings) {
+            Ok(p) => p,
+            Err(e) => {
+                failed.push(JobFailure {
+                    input: file_name,
+                    message: e.to_string(),
+                });
+                continue;
+            }
+        };
+        if !overwrite && out_path.exists() {
+            skipped.push(SkippedOutput {
+                input: file_name,
+                output: out_path.display().to_string(),
+            });
+            continue;
+        }
+
         emit_progress(app, "decode", index, total, file_name.clone());
 
         let img = match imaging::load_oriented(input) {
@@ -186,26 +215,17 @@ fn run_job_fallible(app: &AppHandle, paths: &[String]) -> Result<()> {
         };
 
         emit_progress(app, "encode", index, total, file_name.clone());
-        enum FileOutcome {
-            Written(PathBuf),
-            Skipped,
-        }
-        let result = (|| -> Result<FileOutcome> {
+        let result = (|| -> Result<PathBuf> {
             let mask = imaging::postprocess(&mask_data, plane_len, img.width(), img.height(), spec)?;
             let composed = imaging::compose(&img, &mask);
-            let out_path = compute_output_path(input, &batch_out_dir, &settings)?;
-            if !settings.overwrite && out_path.exists() {
-                return Ok(FileOutcome::Skipped);
-            }
             imaging::encode_and_write(&composed, &out_path, settings.format)?;
-            Ok(FileOutcome::Written(out_path))
+            Ok(out_path.clone())
         })();
         match result {
-            Ok(FileOutcome::Written(out_path)) => outputs.push(JobOutput {
+            Ok(written) => outputs.push(JobOutput {
                 input: file_name.clone(),
-                output: out_path.display().to_string(),
+                output: written.display().to_string(),
             }),
-            Ok(FileOutcome::Skipped) => skipped.push(file_name),
             Err(message) => failed.push(JobFailure {
                 input: file_name,
                 message: message.to_string(),

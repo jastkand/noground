@@ -5,7 +5,8 @@ export const api = {
   getSettings: () => invoke<Settings>('get_settings'),
   setSettings: (settings: Settings) => invoke<Settings>('set_settings', { settings }),
   inspectPaths: (paths: string[]) => invoke<PathEntry[]>('inspect_paths', { paths }),
-  processPaths: (paths: string[]) => invoke<void>('process_paths', { paths }),
+  processPaths: (paths: string[], overwrite?: boolean) =>
+    invoke<void>('process_paths', { paths, overwrite: overwrite ?? null }),
   cancelJob: () => invoke<boolean>('cancel_job'),
   listModels: () => invoke<ModelInfo[]>('list_models'),
   ensureModel: (key: string) => invoke<ModelState>('ensure_model', { key }),

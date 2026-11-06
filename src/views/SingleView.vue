@@ -67,6 +67,20 @@ async function cancel() {
 function startOver() {
   store.single.input = null
   store.single.output = null
+  store.single.skipped = false
+}
+
+async function reprocess() {
+  if (!store.single.input) return
+  store.single.output = null
+  store.single.skipped = false
+  store.job.running = true
+  try {
+    await api.processPaths([store.single.input], true)
+  } catch (e) {
+    store.job.running = false
+    store.error = String(e)
+  }
 }
 </script>
 
@@ -94,9 +108,13 @@ function startOver() {
     </div>
 
     <template v-else-if="store.single.output">
+      <p v-if="store.single.skipped" class="notice panel">
+        Result file already existed — showing it below, nothing was reprocessed.
+      </p>
       <CompareSlider :before="store.single.input!" :after="store.single.output" />
       <div class="actions">
         <button @click="revealItemInDir(store.single.output!)">Show in Finder</button>
+        <button v-if="store.single.skipped" primary @click="reprocess">Reprocess</button>
         <button primary @click="startOver">Start over</button>
       </div>
       <p class="path muted">{{ store.single.output }}</p>
@@ -172,6 +190,14 @@ header h1 {
   to {
     transform: rotate(360deg);
   }
+}
+
+.notice {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  border-radius: 8px;
 }
 
 .actions {
