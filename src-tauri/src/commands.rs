@@ -55,11 +55,9 @@ pub struct PathEntry {
 #[tauri::command]
 pub fn process_paths(
     app: AppHandle,
-    state: State<'_, AppState>,
     paths: Vec<String>,
     overwrite: Option<bool>,
 ) -> Result<(), CmdError> {
-    let _ = state;
     pipeline::start_job(&app, paths, overwrite).map_err(|e| CmdError {
         message: e.to_string(),
         cancelled: false,

@@ -6,7 +6,7 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import DropZone from '../components/DropZone.vue'
 import CompareSlider from '../components/CompareSlider.vue'
 import ProgressBar from '../components/ProgressBar.vue'
-import { useApp } from '../store'
+import { useApp, startBatch } from '../store'
 import { api } from '../api'
 
 const store = useApp()
@@ -47,7 +47,7 @@ async function chooseImages() {
   if (!picked) return
   const paths = Array.isArray(picked) ? picked : [picked]
   if (paths.length > 1) {
-    store.route = 'batch'
+    startBatch()
   } else if (paths.length === 1) {
     store.single.input = paths[0]
     store.single.output = null
@@ -67,7 +67,7 @@ async function chooseImages() {
 async function chooseFolder() {
   const picked = await open({ directory: true })
   if (typeof picked === 'string') {
-    store.route = 'batch'
+    startBatch()
     await api.processPaths([picked])
   }
 }

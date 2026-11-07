@@ -294,7 +294,7 @@ fn expand_inputs(paths: &[String]) -> Result<Vec<PathBuf>> {
                 .filter(|f| f.is_file() && is_image_path(f))
                 .collect();
             files.append(&mut dir_files);
-        } else if path.is_file() {
+        } else if path.is_file() && is_image_path(&path) {
             files.push(path);
         }
     }

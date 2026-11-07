@@ -111,8 +111,10 @@ fn ensure_writable_dir(dir: &std::path::Path) -> bool {
     if std::fs::create_dir_all(dir).is_err() {
         return false;
     }
-    // The first creator owns the dir; open it up so other accounts can use it.
-    let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o777));
+    // The first creator owns the dir; open it up so other accounts can use
+    // it. Sticky (like /tmp): only a file's owner can rename over it, so a
+    // different account can't swap the model out from under this app.
+    let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o1777));
     let probe = dir.join(".writable-probe");
     let ok = std::fs::OpenOptions::new()
         .write(true)
@@ -229,10 +231,14 @@ async fn download_model(
     target: &std::path::Path,
     cancel: &std::sync::atomic::AtomicBool,
 ) -> Result<()> {
-    use futures_util::StreamExt;
-
+    // bounded connect/read: a stalled connection surfaces as an error instead
+    // of hanging forever past the cancel flag
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(15))
+        .read_timeout(Duration::from_secs(30))
+        .build()?;
     let url = format!("{BASE_URL}/{}", spec.asset);
-    let response = reqwest::get(&url).await?.error_for_status()?;
+    let response = client.get(&url).send().await?.error_for_status()?;
     let total_bytes = response.content_length();
     // pid suffix: two accounts downloading the same model into the shared
     // cache must not fight over one .part file
@@ -242,22 +248,40 @@ async fn download_model(
         ensure_writable_dir(dir);
     }
 
+    // any failure (network, checksum, cancel) leaves no orphan .part behind
+    let result = stream_to_part(app, spec, response, total_bytes, &part, target, cancel).await;
+    if result.is_err() {
+        let _ = tokio::fs::remove_file(&part).await;
+    }
+    result
+}
+
+async fn stream_to_part(
+    app: &AppHandle,
+    spec: &ModelSpec,
+    response: reqwest::Response,
+    total_bytes: Option<u64>,
+    part: &std::path::Path,
+    target: &std::path::Path,
+    cancel: &std::sync::atomic::AtomicBool,
+) -> Result<()> {
+    use futures_util::StreamExt;
+
     let mut hasher = PinHasher::new(spec);
-    let mut file = tokio::io::BufWriter::new(tokio::fs::File::create(&part).await?);
+    let mut file = tokio::io::BufWriter::new(tokio::fs::File::create(part).await?);
     let mut stream = response.bytes_stream();
     let mut downloaded: u64 = 0;
     let mut last_emit = Instant::now();
 
     while let Some(chunk) = stream.next().await {
         if cancel.load(Ordering::Relaxed) {
-            let _ = tokio::fs::remove_file(&part).await;
             return Err(AppError::Cancelled.into());
         }
         let chunk = chunk?;
         hasher.update(&chunk);
         downloaded += chunk.len() as u64;
         file.write_all(&chunk).await?;
-        if last_elapsed(&last_emit) >= Duration::from_millis(250) {
+        if last_emit.elapsed() >= Duration::from_millis(250) {
             last_emit = Instant::now();
             let _ = app.emit(
                 "noground://model-progress",
@@ -276,14 +300,13 @@ async fn download_model(
     let actual = hasher.finalize_hex();
     let expected = spec.sha256.or(spec.md5).unwrap_or_default();
     if !expected.is_empty() && actual != expected {
-        let _ = tokio::fs::remove_file(&part).await;
         return Err(anyhow!(
             "checksum mismatch for {} (expected {expected}, got {actual}) — download aborted",
             spec.key
         ));
     }
 
-    tokio::fs::rename(&part, target).await?;
+    tokio::fs::rename(part, target).await?;
     let _ = tokio::fs::set_permissions(target, std::fs::Permissions::from_mode(0o644)).await;
     let _ = app.emit(
         "noground://model-progress",
@@ -295,10 +318,6 @@ async fn download_model(
         },
     );
     Ok(())
-}
-
-fn last_elapsed(since: &Instant) -> Duration {
-    since.elapsed()
 }
 
 #[derive(Clone, Serialize)]

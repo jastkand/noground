@@ -50,10 +50,7 @@ export interface ModelInfo {
   installed: boolean
 }
 
-export type ModelState =
-  | { status: 'ready'; path: string }
-  | { status: 'in-progress' }
-  | { status: 'error'; message: string }
+export type ModelState = { status: 'ready'; path: string } | { status: 'in-progress' }
 
 export interface ModelDownloadProgress {
   key: string

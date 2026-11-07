@@ -38,9 +38,10 @@ anyhow = "1"
 thiserror = "2"
 dirs = "7"
 
+# no panic = "abort" — the job runner relies on catch_unwind to report a
+# failed batch instead of taking the whole app down
 [profile.release]
 codegen-units = 1
 lto = true
 opt-level = 3
-panic = "abort"
 strip = true

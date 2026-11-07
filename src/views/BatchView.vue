@@ -5,7 +5,7 @@ import { openPath } from '@tauri-apps/plugin-opener'
 import DropZone from '../components/DropZone.vue'
 import FileRow from '../components/FileRow.vue'
 import ProgressBar from '../components/ProgressBar.vue'
-import { useApp } from '../store'
+import { useApp, startBatch } from '../store'
 import { api } from '../api'
 
 const store = useApp()
@@ -32,7 +32,7 @@ const header = computed(() => {
 async function chooseFolder() {
   const picked = await open({ directory: true })
   if (typeof picked === 'string') {
-    store.batch.files = []
+    startBatch()
     await api.processPaths([picked])
   }
 }

@@ -7,7 +7,7 @@ import Sidebar from './components/Sidebar.vue'
 import SingleView from './views/SingleView.vue'
 import BatchView from './views/BatchView.vue'
 import SettingsView from './views/SettingsView.vue'
-import { useApp } from './store'
+import { useApp, startBatch, type BatchFile } from './store'
 import { api } from './api'
 import type { JobDone, JobProgress, ModelDownloadProgress } from './types'
 
@@ -63,38 +63,29 @@ onMounted(async () => {
         if (failure) store.error = failure.message
       }
     } else {
-      const outputsMap = new Map(done.outputs.map((o) => [o.input, o.output]))
-      const failedMap = new Map(done.failed.map((f) => [f.input, f.message]))
-      const skippedMap = new Map(done.skipped.map((s) => [s.input, s.output]))
-      for (const row of store.batch.files) {
-        if (outputsMap.has(row.path)) {
-          row.status = 'done'
-        } else if (skippedMap.has(row.path)) {
-          row.status = 'skipped'
-          row.message = 'result already exists'
-        } else if (failedMap.has(row.path)) {
-          row.status = 'failed'
-          row.message = failedMap.get(row.path)
-        }
-      }
-      // skipped files emit no progress events — backfill their rows
-      for (const s of done.skipped) {
-        if (!store.batch.files.some((r) => r.path === s.input)) {
+      // one pass per outcome: rows created from progress events are updated,
+      // files that never got an event (skipped up-front, or missed while on
+      // another view) are backfilled
+      const outcomes: { input: string; status: BatchFile['status']; message?: string }[] = [
+        ...done.outputs.map((o) => ({ input: o.input, status: 'done' as const })),
+        ...done.skipped.map((s) => ({
+          input: s.input,
+          status: 'skipped' as const,
+          message: 'result already exists',
+        })),
+        ...done.failed.map((f) => ({ input: f.input, status: 'failed' as const, message: f.message })),
+      ]
+      for (const o of outcomes) {
+        const row = store.batch.files.find((r) => r.path === o.input)
+        if (row) {
+          row.status = o.status
+          row.message = o.message
+        } else {
           store.batch.files.push({
-            path: s.input,
-            name: fileName(s.input),
-            status: 'skipped',
-            message: 'result already exists',
-          })
-        }
-      }
-      for (const f of done.failed) {
-        if (!store.batch.files.some((r) => r.path === f.input)) {
-          store.batch.files.push({
-            path: f.input,
-            name: fileName(f.input),
-            status: 'failed',
-            message: f.message,
+            path: o.input,
+            name: fileName(o.input),
+            status: o.status,
+            message: o.message,
           })
         }
       }
@@ -123,7 +114,9 @@ onMounted(async () => {
   })
 
   await listen<{ key: string; message: string }>('noground://model-error', async (e) => {
-    store.error = e.payload.message
+    if (e.payload.message !== 'cancelled') {
+      store.error = e.payload.message
+    }
     store.download.key = null
     store.models = await api.listModels().catch(() => store.models)
   })
@@ -138,9 +131,7 @@ async function handleDropped(paths: string[]) {
   const entries = await api.inspectPaths(paths)
   const dir = entries.find((e) => e.isDir)
   if (dir || entries.length > 1) {
-    store.route = 'batch'
-    store.batch.files = []
-    store.batch.outDir = null
+    startBatch()
   } else {
     store.route = 'single'
     store.single.input = entries[0]?.path ?? null

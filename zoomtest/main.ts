@@ -25,29 +25,21 @@ setTimeout(() => {
   }
 }, 500)
 
-// report the geometry of both transformed stacks via document.title
+// report the geometry of the transformed stack and both image layers via
+// document.title — under zoom both layers must stay glued to one transform
 setTimeout(() => {
-  const [z1, z2] = document.querySelectorAll('.zoomer')
-  const r1 = (z1 as HTMLElement).getBoundingClientRect()
-  const r2 = (z2 as HTMLElement).getBoundingClientRect()
-  const t1 = getComputedStyle(z1).transform
-  const t2 = getComputedStyle(z2).transform
-  const c = (document.querySelector('.compare') as HTMLElement).getBoundingClientRect()
-  const img1 = z1.querySelector('img')!.getBoundingClientRect()
-  const img2 = z2.querySelector('img')!.getBoundingClientRect()
-  const im1 = z1.querySelector('img') as HTMLImageElement
-  const im2 = z2.querySelector('img') as HTMLImageElement
+  const zoomer = document.querySelector('.zoomer') as HTMLElement
+  const [before, after] = [...zoomer.querySelectorAll('img')] as HTMLImageElement[]
+  const rect = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect()
+    return [r.x, r.y, r.width, r.height]
+  }
   document.title = JSON.stringify({
-    nat1: [im1.naturalWidth, im1.naturalHeight, im1.complete],
-    nat2: [im2.naturalWidth, im2.naturalHeight, im2.complete],
-    h1: [im1.clientWidth, im1.clientHeight],
-    h2: [im2.clientWidth, im2.clientHeight],
-    compare: [c.width, c.height],
-    z1: [r1.x, r1.y, r1.width, r1.height],
-    z2: [r2.x, r2.y, r2.width, r2.height],
-    img1: [img1.x, img1.y, img1.width, img1.height],
-    img2: [img2.x, img2.y, img2.width, img2.height],
-    t1,
-    t2,
+    natural: [before.naturalWidth, before.naturalHeight, before.complete],
+    compare: rect(document.querySelector('.compare') as HTMLElement),
+    zoomer: rect(zoomer),
+    before: rect(before),
+    after: rect(after),
+    transform: getComputedStyle(zoomer).transform,
   })
 }, 2500)

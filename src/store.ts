@@ -56,6 +56,13 @@ export function useApp(): AppState {
   return state
 }
 
+/// switch to the batch view for a fresh multi-file run
+export function startBatch() {
+  state.route = 'batch'
+  state.batch.files = []
+  state.batch.outDir = null
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024 * 1024) {
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`

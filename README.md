@@ -40,6 +40,8 @@ npm run tauri build    # Noground.app + dmg in target/release/bundle
 
 Notes:
 
+- Dropping a folder processes the images directly inside it; subfolders aren't
+  recursed into.
 - `rust-toolchain.toml` pins the native `stable-aarch64-apple-darwin` toolchain — the
   machine's global rustup default is x86_64 (Rosetta), which ort has no prebuilt
   ONNX Runtime binaries for.
