@@ -57,9 +57,9 @@ Notes:
 
 - Dropping a folder processes the images directly inside it; subfolders aren't
   recursed into.
-- `rust-toolchain.toml` pins the native `stable-aarch64-apple-darwin` toolchain — the
-  machine's global rustup default is x86_64 (Rosetta), which ort has no prebuilt
-  ONNX Runtime binaries for.
+- `rust-toolchain.toml` pins the native `stable-aarch64-apple-darwin` toolchain — ort
+  has no prebuilt ONNX Runtime binaries for x86_64 Rust toolchains running under
+  Rosetta, so builds must target native arm64.
 - First build fetches ONNX Runtime from cdn.pyke.io; needs network once.
 - `src-tauri/src/bin/pngdiff.rs` compares two PNGs (mean/max alpha diff) — handy for
   cutout comparisons; ImageMagick's compose ops are unreliable on this machine.
@@ -106,3 +106,8 @@ Noground's code is released under the [MIT License](LICENSE).
 Note the split: the MIT license covers this repository's code, while the model
 weights it downloads keep their own licenses (see [Model licenses](#model-licenses) —
 in particular, bria-rmbg 2.0 is non-commercial).
+
+Compiled releases also redistribute the statically linked libraries; their licenses
+and full license texts are collected in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), regenerated from the dependency
+trees by `scripts/generate-notices.py`.

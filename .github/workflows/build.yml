@@ -1,0 +1,44 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # arm64 runner matches the rust-toolchain.toml pin (stable-aarch64-apple-darwin);
+    # ort has no prebuilt ONNX Runtime binaries for x86_64-under-Rosetta
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # rustup picks up the pinned channel/target from rust-toolchain.toml
+      - name: Install pinned Rust toolchain
+        run: rustup show active-toolchain
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Typecheck and build frontend
+        run: npm ci && npm run build
+
+      # cargo test is skipped: the parity test needs the ~1 GB bria-rmbg weights
+      # downloaded from rembg releases — too heavy for per-push CI
+      - name: Build app bundle
+        run: npm run tauri build
+
+      - name: Upload dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: Noground-dmg
+          path: target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
