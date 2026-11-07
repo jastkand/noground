@@ -45,6 +45,9 @@ impl SessionCache {
             session: Arc::new(Mutex::new(session)),
             input_name,
         });
+        // keep only the requested model resident — sessions are ~1 GB each and
+        // a job uses exactly one
+        loaded.retain(|k, _| k == key);
         loaded.insert(key.to_string(), entry.clone());
         Ok(entry)
     }

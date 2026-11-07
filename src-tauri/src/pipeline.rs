@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
     sync::atomic::Ordering,
@@ -128,6 +129,9 @@ fn run_job_fallible(app: &AppHandle, paths: &[String], overwrite: Option<bool>) 
     let loaded = state.sessions.get_or_load(spec.key, &model_path)?;
 
     let total = files.len();
+    // output path -> first input that claimed it; two inputs mapping to one
+    // output (a.png + a.jpg) must not silently overwrite each other
+    let mut claimed: HashMap<PathBuf, String> = HashMap::new();
     let mut outputs: Vec<JobOutput> = Vec::new();
     let mut skipped: Vec<SkippedOutput> = Vec::new();
     let mut failed: Vec<JobFailure> = Vec::new();
@@ -163,6 +167,14 @@ fn run_job_fallible(app: &AppHandle, paths: &[String], overwrite: Option<bool>) 
                 continue;
             }
         };
+        if let Some(prev) = claimed.get(&out_path) {
+            failed.push(JobFailure {
+                input: file_name.clone(),
+                message: format!("output name already produced from {prev}"),
+            });
+            continue;
+        }
+        claimed.insert(out_path.clone(), file_name.clone());
         if !overwrite && out_path.exists() {
             skipped.push(SkippedOutput {
                 input: file_name,

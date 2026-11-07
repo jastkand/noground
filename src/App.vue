@@ -103,12 +103,9 @@ onMounted(async () => {
 
   await listen<ModelDownloadProgress>('noground://model-progress', async (e) => {
     const p = e.payload
-    if (store.download.key !== p.key) {
-      store.download.key = p.key
-    }
-    store.download.downloadedBytes = p.downloadedBytes
-    store.download.totalBytes = p.totalBytes
+    store.downloads[p.key] = { downloadedBytes: p.downloadedBytes, totalBytes: p.totalBytes }
     if (p.done) {
+      delete store.downloads[p.key]
       store.models = await api.listModels().catch(() => store.models)
     }
   })
@@ -117,7 +114,7 @@ onMounted(async () => {
     if (e.payload.message !== 'cancelled') {
       store.error = e.payload.message
     }
-    store.download.key = null
+    delete store.downloads[e.payload.key]
     store.models = await api.listModels().catch(() => store.models)
   })
 })

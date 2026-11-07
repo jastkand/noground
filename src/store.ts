@@ -32,11 +32,7 @@ interface AppState {
     outDir: string | null
   }
   models: ModelInfo[]
-  download: {
-    key: string | null
-    downloadedBytes: number
-    totalBytes: number | null
-  }
+  downloads: Record<string, { downloadedBytes: number; totalBytes: number | null }>
 }
 
 const state = reactive<AppState>({
@@ -49,7 +45,7 @@ const state = reactive<AppState>({
   single: { input: null, output: null, skipped: false, model: null, version: 0 },
   batch: { files: [], outDir: null },
   models: [],
-  download: { key: null, downloadedBytes: 0, totalBytes: null },
+  downloads: {},
 })
 
 export function useApp(): AppState {

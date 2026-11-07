@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useApp, formatBytes } from '../store'
 import { api } from '../api'
@@ -9,6 +9,10 @@ const store = useApp()
 onMounted(async () => {
   store.models = await api.listModels()
 })
+
+const modelRows = computed(() =>
+  store.models.map((m) => ({ ...m, download: store.downloads[m.key] })),
+)
 
 async function save() {
   if (store.settings) {
@@ -39,28 +43,13 @@ async function selectModel(key: string) {
 }
 
 async function downloadModel(key: string) {
-  store.download.key = key
-  store.download.downloadedBytes = 0
-  store.download.totalBytes = null
+  store.downloads[key] = { downloadedBytes: 0, totalBytes: null }
   await api.ensureModel(key)
 }
 
 async function cancelDownload(key: string) {
   await api.cancelModelDownload(key)
-}
-
-function isDownloading(key: string): boolean {
-  return store.download.key === key && !downloadDone(key)
-}
-
-function downloadDone(key: string): boolean {
-  return (
-    store.download.key === key &&
-    store.download.totalBytes !== null &&
-    store.download.downloadedBytes >= store.download.totalBytes
-  )
-}
-</script>
+}</script>
 
 <template>
   <div class="view">
@@ -75,7 +64,7 @@ function downloadDone(key: string): boolean {
           <p class="muted">Larger models give cleaner edges; downloads are cached locally.</p>
         </div>
       </div>
-      <div v-for="model in store.models" :key="model.key" class="row model-row">
+      <div v-for="model in modelRows" :key="model.key" class="row model-row">
         <div class="model-info">
           <label class="model-name">
             <input
@@ -92,11 +81,11 @@ function downloadDone(key: string): boolean {
         </div>
         <div class="control">
           <span v-if="model.installed" class="muted">installed</span>
-          <template v-else-if="isDownloading(model.key)">
+          <template v-else-if="model.download">
             <span class="muted">
-              {{ formatBytes(store.download.downloadedBytes) }}
-              <template v-if="store.download.totalBytes">
-                / {{ formatBytes(store.download.totalBytes) }}
+              {{ formatBytes(model.download.downloadedBytes) }}
+              <template v-if="model.download.totalBytes">
+                / {{ formatBytes(model.download.totalBytes) }}
               </template>
             </span>
             <button class="danger" @click="cancelDownload(model.key)">Cancel</button>
