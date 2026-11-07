@@ -3,6 +3,8 @@
 Local background removal for macOS. Drop an image (or a folder), get a transparent cutout —
 everything runs on-device, nothing leaves the Mac.
 
+![Noground — before/after compare slider](docs/screenshots/main.png)
+
 Upscayl-style dark UI: sidebar (single / batch / settings), drag-and-drop, before/after
 compare slider, batch progress with per-file status.
 
