@@ -18,7 +18,7 @@ compare slider, batch progress with per-file status.
   the Mac. Falls back to per-user app data when `/Users/Shared` isn't writable.
 - The pre/post-processing (resize, per-image max normalization, mask postprocess, composite)
   is a faithful Rust port of rembg's session code — verified against Python rembg's bria
-  output (`cargo test`): mean alpha diff 0.02/255, 99.97% of pixels within 8/255.
+  output (`cargo test`): mean alpha diff 0.12/255, 99.8% of pixels within 8/255.
 - Models already downloaded by the Python `rembg` tool (`~/.rembg/models/…`, `~/.u2net/…`)
   are probed and reused — no re-download.
 
@@ -49,8 +49,10 @@ Notes:
 
 ## Test data
 
-`testdata/player.png` is the sample jersey photo; `testdata/player-bria-ref.png` is the
-Python-rembg bria-rmbg reference cutout used by the parity test.
+`testdata/cat.png` is the test photo — "Tabby cat with blue eyes" by AdinaVoicu on
+[Pixabay](https://pixabay.com/en/users/AdinaVoicu-485024/), CC0;
+`testdata/cat-bria-ref.png` is the Python-rembg bria-rmbg reference cutout used by the
+parity test.
 
 ## Assets & tooling
 

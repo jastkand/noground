@@ -20,8 +20,8 @@ fn bria_parity_with_reference() {
         return;
     };
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let input = root.join("../testdata/player.png");
-    let reference = image::open(root.join("../testdata/player-bria-ref.png"))
+    let input = root.join("../testdata/cat.png");
+    let reference = image::open(root.join("../testdata/cat-bria-ref.png"))
         .expect("reference cutout")
         .to_rgba8();
     let spec = models::spec("bria-rmbg").unwrap();

@@ -3,7 +3,7 @@ import CompareSlider from '../src/components/CompareSlider.vue'
 import './../src/styles/global.css'
 
 createApp({
-  render: () => h(CompareSlider, { before: '/before.png', after: '/before.png' }),
+  render: () => h(CompareSlider, { before: '/cat.png', after: '/cat-out.png' }),
 }).mount('#app')
 
 // simulate a trackpad pinch (ctrl+wheel) at the viewport center after mount
