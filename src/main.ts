@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import './styles/global.css'
 import App from './App.vue'
+import { initPaths } from './paths'
 
-createApp(App).mount('#app')
+initPaths().then(() => createApp(App).mount('#app'))

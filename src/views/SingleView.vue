@@ -7,6 +7,7 @@ import DropZone from '../components/DropZone.vue'
 import CompareSlider from '../components/CompareSlider.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 import { useApp, startBatch } from '../store'
+import { displayPath } from '../paths'
 import { api } from '../api'
 
 const store = useApp()
@@ -140,7 +141,7 @@ async function regenerate() {
         <button @click="startOver">Start over</button>
       </div>
       <p class="path muted">
-        {{ store.single.output }}
+        {{ displayPath(store.single.output) }}
         <span v-if="store.single.model">
           · model: {{ modelLabel }}
           <template v-if="modelChanged"> — changed in Settings, apply to reprocess</template>
