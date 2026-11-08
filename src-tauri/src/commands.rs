@@ -87,3 +87,16 @@ pub fn ensure_model(app: AppHandle, key: String) -> Result<models::ModelState, C
 pub fn cancel_model_download(state: State<'_, AppState>, key: String) -> bool {
     models::cancel_model_download(&state, &key)
 }
+
+#[tauri::command]
+pub fn delete_model(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    key: String,
+) -> Result<bool, CmdError> {
+    models::delete_model(&app, &state, &key).map_err(|e| CmdError {
+        message: e.to_string(),
+        cancelled: false,
+    })?;
+    Ok(true)
+}

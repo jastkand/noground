@@ -51,4 +51,10 @@ impl SessionCache {
         loaded.insert(key.to_string(), entry.clone());
         Ok(entry)
     }
+
+    /// drop a cached session, e.g. its backing model file was removed; any job
+    /// holding the Arc keeps its copy alive
+    pub fn evict(&self, key: &str) {
+        self.loaded.lock().unwrap().remove(key);
+    }
 }

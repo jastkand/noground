@@ -48,6 +48,7 @@ export interface ModelInfo {
   label: string
   approxBytes: number
   installed: boolean
+  diskBytes: number | null
 }
 
 export type ModelState = { status: 'ready'; path: string } | { status: 'in-progress' }

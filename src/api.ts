@@ -11,4 +11,5 @@ export const api = {
   listModels: () => invoke<ModelInfo[]>('list_models'),
   ensureModel: (key: string) => invoke<ModelState>('ensure_model', { key }),
   cancelModelDownload: (key: string) => invoke<boolean>('cancel_model_download', { key }),
+  deleteModel: (key: string) => invoke<boolean>('delete_model', { key }),
 }

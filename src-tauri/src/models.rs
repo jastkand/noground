@@ -341,11 +341,19 @@ pub fn cancel_model_download(state: &AppState, key: &str) -> bool {
 pub fn list_models(app: &AppHandle) -> Vec<ModelInfo> {
     MODELS
         .iter()
-        .map(|m| ModelInfo {
-            key: m.key,
-            label: m.label.to_string(),
-            approx_bytes: m.approx_bytes,
-            installed: resolve_model_path(app, m.key).is_some(),
+        .map(|m| {
+            let path = resolve_model_path(app, m.key);
+            let disk_bytes = path
+                .as_ref()
+                .and_then(|p| std::fs::metadata(p).ok())
+                .map(|meta| meta.len());
+            ModelInfo {
+                key: m.key,
+                label: m.label.to_string(),
+                approx_bytes: m.approx_bytes,
+                installed: path.is_some(),
+                disk_bytes,
+            }
         })
         .collect()
 }
@@ -357,4 +365,44 @@ pub struct ModelInfo {
     pub label: String,
     pub approx_bytes: u64,
     pub installed: bool,
+    pub disk_bytes: Option<u64>,
+}
+
+/// Remove an installed model file. Restricted to the roots this app manages —
+/// a model discovered in ~/.rembg or ~/.u2net belongs to rembg's cache and is
+/// left alone — and to non-active models, since the active one backs the
+/// resident session.
+pub fn delete_model(app: &AppHandle, state: &AppState, key: &str) -> Result<()> {
+    let spec = spec(key)?;
+    if state.downloads.lock().unwrap().contains_key(key) {
+        return Err(anyhow!("“{}” is still downloading", spec.label));
+    }
+    if state.settings.lock().unwrap().model == key {
+        return Err(anyhow!(
+            "“{}” is the active model — switch to another model first",
+            spec.label
+        ));
+    }
+    let Some(path) = resolve_model_path(app, key) else {
+        return Err(anyhow!("“{}” is not installed", spec.label));
+    };
+    let mut managed: Vec<PathBuf> = vec![models_root(app)];
+    if let Ok(app_data) = app.path().app_data_dir() {
+        managed.push(app_data.join("models"));
+    }
+    if !managed.iter().any(|root| path.starts_with(root)) {
+        return Err(anyhow!(
+            "“{}” lives outside noground's cache ({}) and is not removed",
+            spec.label,
+            path.display()
+        ));
+    }
+    std::fs::remove_file(&path).map_err(|e| anyhow!("failed to remove {}: {e}", path.display()))?;
+    // drop the now-empty per-model dir; fails harmlessly when not empty or
+    // owned by another account
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::remove_dir(dir);
+    }
+    state.sessions.evict(key);
+    Ok(())
 }

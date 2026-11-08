@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { open } from '@tauri-apps/plugin-dialog'
+import { open, ask } from '@tauri-apps/plugin-dialog'
 import { useApp, formatBytes } from '../store'
 import { api } from '../api'
+import type { ModelInfo } from '../types'
 
 const store = useApp()
 
@@ -49,6 +50,21 @@ async function downloadModel(key: string) {
 
 async function cancelDownload(key: string) {
   await api.cancelModelDownload(key)
+}
+
+async function removeModel(model: ModelInfo) {
+  const size = model.diskBytes != null ? formatBytes(model.diskBytes) : null
+  const ok = await ask(
+    `Remove ${model.label}?${size ? ` This deletes the downloaded file (${size}) from disk.` : ''} You can download it again later.`,
+    { title: 'Remove model', kind: 'warning' },
+  )
+  if (!ok) return
+  try {
+    await api.deleteModel(model.key)
+    store.models = await api.listModels()
+  } catch (e) {
+    store.error = (e as { message?: string }).message ?? String(e)
+  }
 }</script>
 
 <template>
@@ -80,7 +96,19 @@ async function cancelDownload(key: string) {
           </label>
         </div>
         <div class="control">
-          <span v-if="model.installed" class="muted">installed</span>
+          <template v-if="model.installed">
+            <span class="muted">
+              {{ model.diskBytes != null ? formatBytes(model.diskBytes) : 'installed' }}
+            </span>
+            <button
+              class="danger compact"
+              :disabled="model.key === store.settings?.model"
+              title="Active model — switch to another one first"
+              @click="removeModel(model)"
+            >
+              Remove
+            </button>
+          </template>
           <template v-else-if="model.download">
             <span class="muted">
               {{ formatBytes(model.download.downloadedBytes) }}
