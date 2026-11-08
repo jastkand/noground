@@ -6,6 +6,8 @@ use std::{
 
 use anyhow::{anyhow, Result};
 
+use crate::models;
+
 pub struct LoadedSession {
     pub session: Arc<Mutex<ort::session::Session>>,
     pub input_name: String,
@@ -17,10 +19,23 @@ pub struct SessionCache {
 }
 
 impl SessionCache {
-    pub fn get_or_load(&self, key: &str, path: &Path) -> Result<Arc<LoadedSession>> {
+    /// `verify` is Some for files in the world-writable shared cache: their
+    /// pinned checksum is checked right before the session is built (cache
+    /// misses only, ~1 s per GB), since nothing on the filesystem pins that
+    /// content. Files borrowed from ~/.rembg / ~/.u2net aren't managed here
+    /// and may legitimately be older rembg-era downloads — load unverified.
+    pub fn get_or_load(
+        &self,
+        key: &str,
+        path: &Path,
+        verify: Option<&models::ModelSpec>,
+    ) -> Result<Arc<LoadedSession>> {
         let mut loaded = self.loaded.lock().unwrap();
         if let Some(existing) = loaded.get(key) {
             return Ok(existing.clone());
+        }
+        if let Some(spec) = verify {
+            models::verify_file_checksum(path, spec)?;
         }
 
         // ort::Error is not Send + Sync — stringify at every fallible step.

@@ -126,7 +126,11 @@ fn run_job_fallible(app: &AppHandle, paths: &[String], overwrite: Option<bool>) 
             spec.label
         ));
     };
-    let loaded = state.sessions.get_or_load(spec.key, &model_path)?;
+    let loaded = state.sessions.get_or_load(
+        spec.key,
+        &model_path,
+        models::is_managed_path(app, &model_path).then_some(spec),
+    )?;
 
     let total = files.len();
     // output path -> first input that claimed it; two inputs mapping to one

@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use md5::Md5;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -112,9 +112,12 @@ fn ensure_writable_dir(dir: &std::path::Path) -> bool {
         return false;
     }
     // The first creator owns the dir; open it up so other accounts can use
-    // it. Sticky (like /tmp): only a file's owner can rename over it, so a
-    // different account can't swap the model out from under this app.
-    let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o1777));
+    // it — download and remove are both expected to work from any account.
+    // No sticky bit: it would restrict cleanup to the file's owner and block
+    // cross-account Remove. Integrity of this world-writable cache isn't
+    // enforced here but by verifying the pinned checksum when the model
+    // session loads (see SessionCache::get_or_load).
+    let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o777));
     let probe = dir.join(".writable-probe");
     let ok = std::fs::OpenOptions::new()
         .write(true)
@@ -368,6 +371,47 @@ pub struct ModelInfo {
     pub disk_bytes: Option<u64>,
 }
 
+/// Whether a model file sits in a cache this app manages (and downloads into).
+/// Files found in ~/.rembg or ~/.u2net belong to rembg instead.
+pub fn is_managed_path(app: &AppHandle, path: &std::path::Path) -> bool {
+    let mut roots = vec![models_root(app)];
+    if let Ok(app_data) = app.path().app_data_dir() {
+        roots.push(app_data.join("models"));
+    }
+    roots.iter().any(|root| path.starts_with(root))
+}
+
+/// Verify a downloaded model against the checksum pinned in `MODELS` before
+/// loading it into a session. The shared cache is world-writable, so nothing
+/// on the filesystem pins its content — this does.
+pub fn verify_file_checksum(path: &std::path::Path, spec: &ModelSpec) -> Result<()> {
+    let expected = spec.sha256.or(spec.md5).unwrap_or_default();
+    if expected.is_empty() {
+        return Ok(());
+    }
+    use std::io::Read as _;
+
+    let mut hasher = PinHasher::new(spec);
+    let mut file =
+        std::fs::File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+    let mut buf = vec![0u8; 1024 * 1024];
+    loop {
+        let read = file.read(&mut buf)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buf[..read]);
+    }
+    let actual = hasher.finalize_hex();
+    if actual != expected {
+        return Err(anyhow!(
+            "“{}” failed its checksum — remove and re-download it in Settings",
+            spec.label
+        ));
+    }
+    Ok(())
+}
+
 /// Remove an installed model file. Restricted to the roots this app manages —
 /// a model discovered in ~/.rembg or ~/.u2net belongs to rembg's cache and is
 /// left alone — and to non-active models, since the active one backs the
@@ -386,18 +430,23 @@ pub fn delete_model(app: &AppHandle, state: &AppState, key: &str) -> Result<()> 
     let Some(path) = resolve_model_path(app, key) else {
         return Err(anyhow!("“{}” is not installed", spec.label));
     };
-    let mut managed: Vec<PathBuf> = vec![models_root(app)];
-    if let Ok(app_data) = app.path().app_data_dir() {
-        managed.push(app_data.join("models"));
-    }
-    if !managed.iter().any(|root| path.starts_with(root)) {
+    if !is_managed_path(app, &path) {
         return Err(anyhow!(
             "“{}” lives outside noground's cache ({}) and is not removed",
             spec.label,
             path.display()
         ));
     }
-    std::fs::remove_file(&path).map_err(|e| anyhow!("failed to remove {}: {e}", path.display()))?;
+    if let Err(e) = std::fs::remove_file(&path) {
+        if e.kind() == std::io::ErrorKind::PermissionDenied {
+            return Err(anyhow!(
+                "“{}” was downloaded by another account on this Mac and can't be removed from this one — delete {} from that account (Finder will ask to authenticate) or with sudo",
+                spec.label,
+                path.display()
+            ));
+        }
+        return Err(anyhow!("failed to remove {}: {e}", path.display()));
+    }
     // drop the now-empty per-model dir; fails harmlessly when not empty or
     // owned by another account
     if let Some(dir) = path.parent() {
