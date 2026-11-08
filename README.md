@@ -8,6 +8,24 @@ everything runs on-device, nothing leaves the Mac.
 Upscayl-style dark UI: sidebar (single / batch / settings), drag-and-drop, before/after
 compare slider, batch progress with per-file status.
 
+## Install
+
+Download the dmg from [Releases](../../releases), open it, drag **Noground** into
+Applications.
+
+The app is unsigned, so Gatekeeper blocks the first launch — and re-blocks it once per
+installed update:
+
+1. Double-click Noground; macOS warns it can't verify the app.
+2. Open **System Settings → Privacy & Security**, scroll to the security notice, click
+   **Open Anyway** and authenticate. (If the notice isn't there anymore, try launching
+   the app once more — it re-appears.)
+3. Terminal fallback: `xattr -cr /Applications/Noground.app`
+
+Each release lists the dmg's `shasum -a 256` checksum; verify yours with
+`shasum -a 256 Noground_*.dmg`. Or skip Gatekeeper entirely by
+[building from source](#development).
+
 ## How it works
 
 - **Tauri v2** app shell (Vue 3 + TypeScript frontend, Rust backend).

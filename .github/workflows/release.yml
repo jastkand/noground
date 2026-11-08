@@ -1,0 +1,49 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    # arm64 runner matches the rust-toolchain.toml pin (stable-aarch64-apple-darwin);
+    # ort has no prebuilt ONNX Runtime binaries for x86_64-under-Rosetta
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # rustup picks up the pinned channel/target from rust-toolchain.toml
+      - name: Install pinned Rust toolchain
+        run: rustup show active-toolchain
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: npm ci
+
+      # unsigned build on purpose — no signing identity configured; users click
+      # through Gatekeeper per the README "Install" section
+      - name: Build app bundle
+        run: npm run tauri build
+
+      - name: Checksum
+        working-directory: src-tauri/target/release/bundle/dmg
+        run: shasum -a 256 *.dmg > SHA256SUMS.txt
+
+      # draft release: review the generated notes, attach anything else, then publish
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --draft --generate-notes --title "${GITHUB_REF_NAME}" \
+            src-tauri/target/release/bundle/dmg/*.dmg \
+            src-tauri/target/release/bundle/dmg/SHA256SUMS.txt
