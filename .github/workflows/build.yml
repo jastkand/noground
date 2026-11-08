@@ -13,7 +13,7 @@ jobs:
   build:
     # arm64 runner matches the rust-toolchain.toml pin (stable-aarch64-apple-darwin);
     # ort has no prebuilt ONNX Runtime binaries for x86_64-under-Rosetta
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
