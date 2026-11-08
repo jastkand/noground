@@ -15,9 +15,9 @@ jobs:
     # ort has no prebuilt ONNX Runtime binaries for x86_64-under-Rosetta
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -47,7 +47,7 @@ jobs:
         run: npm run tauri build
 
       - name: Upload dmg
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Noground-dmg
           path: src-tauri/target/release/bundle/dmg/*.dmg
