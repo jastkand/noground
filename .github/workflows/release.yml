@@ -25,7 +25,11 @@ jobs:
       - name: Install pinned Rust toolchain
         run: rustup show active-toolchain
 
+      # own prefix, separate from build.yml's ci-profile cache; this one keeps
+      # the full [profile.release] LTO artifacts used for published dmgs
       - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: release-v1
 
       - run: npm ci
 

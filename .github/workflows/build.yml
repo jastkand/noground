@@ -26,7 +26,11 @@ jobs:
       - name: Install pinned Rust toolchain
         run: rustup show active-toolchain
 
+      # own prefix so the per-push cache keeps ci-profile artifacts only,
+      # instead of ballooning to release + ci (10 GB repo cache cap)
       - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: ci-v1
 
       - name: Typecheck and build frontend
         run: npm ci && npm run build
@@ -34,6 +38,12 @@ jobs:
       # cargo test is skipped: the parity test needs the ~1 GB bria-rmbg weights
       # downloaded from rembg releases — too heavy for per-push CI
       - name: Build app bundle
+        # tauri v2 CLI has no --profile flag; these Cargo env overrides flatten
+        # the release profile instead — no single-threaded fat-LTO link per push.
+        # release.yml (tags) builds without them, keeping full LTO
+        env:
+          CARGO_PROFILE_RELEASE_LTO: "false"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
         run: npm run tauri build
 
       - name: Upload dmg
