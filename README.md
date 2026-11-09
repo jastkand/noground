@@ -70,6 +70,7 @@ cutout to work:
 npm install
 npm run tauri dev      # opens the app window
 cargo test             # parity test against the reference cutout (needs bria in ~/.rembg)
+npm test               # compare-slider zoom regression (headless chrome)
 npm run tauri build    # Noground.app + dmg in target/release/bundle
 ```
 
@@ -96,9 +97,6 @@ parity test.
 - `assets/logo.svg` — minified logo source. The macOS icon is regenerated from it via the
   Big Sur grid (1024 canvas, 824 artwork, 100px margins, 185px radius) rendered in headless
   Chrome, then `npm run tauri icon <png>`.
-- `zoomtest/` — standalone Vite harness that mounts the real `CompareSlider` in a plain
-  browser (Tauri APIs stubbed) for headless-Chrome layout verification:
-  `npx vite --config zoomtest/vite.config.mjs serve`, then screenshot `http://localhost:1430`.
 
 ## Credits
 

@@ -35,6 +35,12 @@ jobs:
       - name: Typecheck and build frontend
         run: npm ci && npm run build
 
+      # drives zoomtest/ with headless Chrome: CompareSlider layers stay glued
+      # under pinch zoom (the WKWebView desync regression). Chrome is preinstalled
+      # on macOS runners; before the tauri build so it fails fast.
+      - name: Zoom regression test (headless Chrome)
+        run: npm test
+
       # cargo test is skipped: the parity test needs the ~1 GB bria-rmbg weights
       # downloaded from rembg releases — too heavy for per-push CI
       - name: Build app bundle
