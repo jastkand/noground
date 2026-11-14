@@ -3,6 +3,7 @@ use std::sync::atomic::Ordering;
 use tauri::{AppHandle, State};
 
 use crate::{
+    cli,
     error::{AppError, CmdError},
     models,
     pipeline,
@@ -71,8 +72,8 @@ pub fn cancel_job(state: State<'_, AppState>) -> bool {
 }
 
 #[tauri::command]
-pub fn list_models(app: AppHandle) -> Vec<models::ModelInfo> {
-    models::list_models(&app)
+pub fn list_models() -> Vec<models::ModelInfo> {
+    models::list_models()
 }
 
 #[tauri::command]
@@ -89,14 +90,31 @@ pub fn cancel_model_download(state: State<'_, AppState>, key: String) -> bool {
 }
 
 #[tauri::command]
-pub fn delete_model(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    key: String,
-) -> Result<bool, CmdError> {
-    models::delete_model(&app, &state, &key).map_err(|e| CmdError {
+pub fn delete_model(state: State<'_, AppState>, key: String) -> Result<bool, CmdError> {
+    models::delete_model(&state, &key).map_err(|e| CmdError {
         message: e.to_string(),
         cancelled: false,
     })?;
     Ok(true)
+}
+
+#[tauri::command]
+pub fn cli_status() -> cli::CliStatus {
+    cli::status()
+}
+
+#[tauri::command]
+pub fn install_cli() -> Result<cli::CliStatus, CmdError> {
+    cli::install().map_err(|e| CmdError {
+        message: e.to_string(),
+        cancelled: false,
+    })
+}
+
+#[tauri::command]
+pub fn uninstall_cli() -> Result<cli::CliStatus, CmdError> {
+    cli::uninstall().map_err(|e| CmdError {
+        message: e.to_string(),
+        cancelled: false,
+    })
 }

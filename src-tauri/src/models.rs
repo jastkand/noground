@@ -92,19 +92,42 @@ pub fn spec(key: &str) -> Result<&'static ModelSpec> {
         .ok_or_else(|| anyhow!("unknown model: {key}"))
 }
 
-/// Shared, cross-user model cache — this is a personal macOS app, and
+/// The world-writable shared cache root — this is a personal macOS app, and
 /// /Users/Shared is the standard world-writable location. One download then
-/// serves every account on the machine. Falls back to per-user app data
-/// when Shared isn't usable.
-fn models_root(app: &AppHandle) -> PathBuf {
-    let shared = PathBuf::from("/Users/Shared/noground/models");
+/// serves every account on the Mac.
+pub(crate) fn shared_models_root() -> PathBuf {
+    PathBuf::from("/Users/Shared/noground/models")
+}
+
+/// The app's per-user support dir (what Tauri calls app_data_dir on macOS),
+/// computed without a Tauri runtime so the CLI reads the same settings.json
+/// and finds the same models.
+pub(crate) fn app_support_dir() -> Option<PathBuf> {
+    dirs::data_dir().map(|d| d.join("com.krivko.noground"))
+}
+
+fn models_root() -> PathBuf {
+    let shared = shared_models_root();
     if ensure_writable_dir(&shared) {
         return shared;
     }
-    app.path()
-        .app_data_dir()
-        .map(|d| d.join("models"))
-        .unwrap_or(shared)
+    app_support_dir().map(|d| d.join("models")).unwrap_or(shared)
+}
+
+/// Ordered candidates where model `key` may live: the shared/per-user cache
+/// this app manages, the legacy app-data location, the rembg cache (probed
+/// read-only, same `<dir>/<key>/<key>.onnx` layout), legacy flat cache.
+pub(crate) fn model_candidates(key: &str) -> Vec<PathBuf> {
+    let file = format!("{key}.onnx");
+    let mut candidates: Vec<PathBuf> = vec![models_root().join(key).join(&file)];
+    if let Some(app_data) = app_support_dir() {
+        candidates.push(app_data.join("models").join(key).join(&file));
+    }
+    if let Some(home) = dirs::home_dir() {
+        candidates.push(home.join(".rembg").join("models").join(key).join(&file));
+        candidates.push(home.join(".u2net").join(&file));
+    }
+    candidates
 }
 
 fn ensure_writable_dir(dir: &std::path::Path) -> bool {
@@ -129,23 +152,13 @@ fn ensure_writable_dir(dir: &std::path::Path) -> bool {
     ok
 }
 
-/// First existing location wins: the shared/per-user cache this app manages,
-/// the legacy app-data location, the rembg cache (probed read-only, same
-/// `<dir>/<key>/<key>.onnx` layout), legacy flat cache.
-pub fn resolve_model_path(app: &AppHandle, key: &str) -> Option<PathBuf> {
-    let mut candidates: Vec<PathBuf> = vec![models_root(app).join(key).join(format!("{key}.onnx"))];
-    if let Ok(app_data) = app.path().app_data_dir() {
-        candidates.push(app_data.join("models").join(key).join(format!("{key}.onnx")));
-    }
-    if let Some(home) = dirs::home_dir() {
-        candidates.push(home.join(".rembg").join("models").join(key).join(format!("{key}.onnx")));
-        candidates.push(home.join(".u2net").join(format!("{key}.onnx")));
-    }
-    candidates.into_iter().find(|p| p.exists())
+/// First existing candidate wins (see `model_candidates`).
+pub fn resolve_model_path(key: &str) -> Option<PathBuf> {
+    model_candidates(key).into_iter().find(|p| p.exists())
 }
 
-fn download_target(app: &AppHandle, key: &str) -> Result<PathBuf> {
-    Ok(models_root(app).join(key).join(format!("{key}.onnx")))
+fn download_target(key: &str) -> Result<PathBuf> {
+    Ok(models_root().join(key).join(format!("{key}.onnx")))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -157,7 +170,7 @@ pub enum ModelState {
 
 pub fn ensure_model(app: &AppHandle, key: &str) -> Result<ModelState> {
     let spec = spec(key)?;
-    if let Some(path) = resolve_model_path(app, key) {
+    if let Some(path) = resolve_model_path(key) {
         return Ok(ModelState::Ready {
             path: path.display().to_string(),
         });
@@ -172,7 +185,7 @@ pub fn ensure_model(app: &AppHandle, key: &str) -> Result<ModelState> {
         downloads.insert(key.to_string(), Arc::new(Default::default()));
     }
 
-    let target = download_target(app, key)?;
+    let target = download_target(key)?;
     let cancel = state.downloads.lock().unwrap()[key].clone();
     let app2 = app.clone();
     let key2 = key.to_string();
@@ -341,11 +354,11 @@ pub fn cancel_model_download(state: &AppState, key: &str) -> bool {
     }
 }
 
-pub fn list_models(app: &AppHandle) -> Vec<ModelInfo> {
+pub fn list_models() -> Vec<ModelInfo> {
     MODELS
         .iter()
         .map(|m| {
-            let path = resolve_model_path(app, m.key);
+            let path = resolve_model_path(m.key);
             let disk_bytes = path
                 .as_ref()
                 .and_then(|p| std::fs::metadata(p).ok())
@@ -372,10 +385,11 @@ pub struct ModelInfo {
 }
 
 /// Whether a model file sits in a cache this app manages (and downloads into).
-/// Files found in ~/.rembg or ~/.u2net belong to rembg instead.
-pub fn is_managed_path(app: &AppHandle, path: &std::path::Path) -> bool {
-    let mut roots = vec![models_root(app)];
-    if let Ok(app_data) = app.path().app_data_dir() {
+/// Files found in ~/.rembg or ~/.u2net belong to rembg instead. Shared with
+/// the CLI, which has no AppHandle.
+pub fn is_managed_path(path: &std::path::Path) -> bool {
+    let mut roots = vec![shared_models_root()];
+    if let Some(app_data) = app_support_dir() {
         roots.push(app_data.join("models"));
     }
     roots.iter().any(|root| path.starts_with(root))
@@ -416,7 +430,7 @@ pub fn verify_file_checksum(path: &std::path::Path, spec: &ModelSpec) -> Result<
 /// a model discovered in ~/.rembg or ~/.u2net belongs to rembg's cache and is
 /// left alone — and to non-active models, since the active one backs the
 /// resident session.
-pub fn delete_model(app: &AppHandle, state: &AppState, key: &str) -> Result<()> {
+pub fn delete_model(state: &AppState, key: &str) -> Result<()> {
     let spec = spec(key)?;
     if state.downloads.lock().unwrap().contains_key(key) {
         return Err(anyhow!("“{}” is still downloading", spec.label));
@@ -427,10 +441,10 @@ pub fn delete_model(app: &AppHandle, state: &AppState, key: &str) -> Result<()> 
             spec.label
         ));
     }
-    let Some(path) = resolve_model_path(app, key) else {
+    let Some(path) = resolve_model_path(key) else {
         return Err(anyhow!("“{}” is not installed", spec.label));
     };
-    if !is_managed_path(app, &path) {
+    if !is_managed_path(&path) {
         return Err(anyhow!(
             "“{}” lives outside noground's cache ({}) and is not removed",
             spec.label,

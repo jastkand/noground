@@ -120,7 +120,7 @@ fn run_job_fallible(app: &AppHandle, paths: &[String], overwrite: Option<bool>) 
 
     emit_progress(app, "model", 0, files.len(), String::new());
     let spec = models::spec(&settings.model)?;
-    let Some(model_path) = models::resolve_model_path(app, spec.key) else {
+    let Some(model_path) = models::resolve_model_path(spec.key) else {
         return Err(anyhow!(
             "model “{}” is not installed — download it in Settings first",
             spec.label
@@ -129,7 +129,7 @@ fn run_job_fallible(app: &AppHandle, paths: &[String], overwrite: Option<bool>) 
     let loaded = state.sessions.get_or_load(
         spec.key,
         &model_path,
-        models::is_managed_path(app, &model_path).then_some(spec),
+        models::is_managed_path(&model_path).then_some(spec),
     )?;
 
     let total = files.len();
@@ -202,24 +202,8 @@ fn run_job_fallible(app: &AppHandle, paths: &[String], overwrite: Option<bool>) 
 
         emit_progress(app, "infer", index, total, file_name.clone());
         let tensor = imaging::preprocess(&img, spec);
-        let s = spec.input_size as usize;
-        let plane_len = s * s;
-        // ort::Error is not Send + Sync — stringify inside the closure.
-        let mask_data: Result<Vec<f32>, String> = {
-            let mut session = loaded.session.lock().unwrap();
-            (|| {
-                let input_tensor = ort::value::Tensor::from_array(([1usize, 3, s, s], tensor))
-                    .map_err(|e| e.to_string())?;
-                let outputs = session
-                    .run(ort::inputs![loaded.input_name.as_str() => input_tensor])
-                    .map_err(|e| e.to_string())?;
-                let (_, data) = outputs[0]
-                    .try_extract_tensor::<f32>()
-                    .map_err(|e| e.to_string())?;
-                Ok(data[..plane_len].to_vec())
-            })()
-        };
-        let mask_data = match mask_data {
+        let plane_len = (spec.input_size as usize).pow(2);
+        let mask_data = match loaded.infer(tensor, spec.input_size) {
             Ok(data) => data,
             Err(message) => {
                 failed.push(JobFailure {
@@ -277,7 +261,9 @@ fn emit_progress(app: &AppHandle, stage: &'static str, index: usize, total: usiz
     );
 }
 
-fn compute_output_path(
+/// Where a processed image lands. Shared with the CLI so both produce
+/// identical output names.
+pub(crate) fn compute_output_path(
     input: &Path,
     batch_out_dir: &Option<PathBuf>,
     settings: &Settings,
@@ -300,7 +286,9 @@ fn compute_output_path(
     Ok(dir.join(format!("{stem}-noground.{ext}")))
 }
 
-fn expand_inputs(paths: &[String]) -> Result<Vec<PathBuf>> {
+/// Files and/or folders to image files, sorted and deduped. Folders are not
+/// recursed into. Shared with the CLI so both accept the same inputs.
+pub(crate) fn expand_inputs(paths: &[String]) -> Result<Vec<PathBuf>> {
     let mut files: Vec<PathBuf> = Vec::new();
     for p in paths {
         let path = PathBuf::from(p);

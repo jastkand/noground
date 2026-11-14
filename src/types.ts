@@ -59,3 +59,11 @@ export interface ModelDownloadProgress {
   totalBytes: number | null
   done: boolean
 }
+
+export interface CliStatus {
+  installed: boolean
+  linkPath: string
+  target: string | null
+  binDirOnPath: boolean
+  devBuild: boolean
+}

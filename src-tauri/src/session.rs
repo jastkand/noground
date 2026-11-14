@@ -13,6 +13,29 @@ pub struct LoadedSession {
     pub input_name: String,
 }
 
+impl LoadedSession {
+    /// Run the model on a preprocessed [1, 3, s, s] tensor and return the
+    /// first output plane (the raw mask). The one inference path shared by
+    /// the app pipeline and the CLI. ort::Error is not Send + Sync —
+    /// stringify inside the closure.
+    pub fn infer(&self, input: Vec<f32>, size: u32) -> Result<Vec<f32>, String> {
+        let s = size as usize;
+        let plane_len = s * s;
+        let mut session = self.session.lock().unwrap();
+        (|| {
+            let input_tensor = ort::value::Tensor::from_array(([1usize, 3, s, s], input))
+                .map_err(|e| e.to_string())?;
+            let outputs = session
+                .run(ort::inputs![self.input_name.as_str() => input_tensor])
+                .map_err(|e| e.to_string())?;
+            let (_, data) = outputs[0]
+                .try_extract_tensor::<f32>()
+                .map_err(|e| e.to_string())?;
+            Ok(data[..plane_len].to_vec())
+        })()
+    }
+}
+
 #[derive(Default)]
 pub struct SessionCache {
     loaded: Mutex<HashMap<String, Arc<LoadedSession>>>,

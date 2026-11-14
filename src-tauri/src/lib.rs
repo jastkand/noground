@@ -1,4 +1,5 @@
 mod commands;
+pub mod cli;
 mod error;
 mod imaging;
 mod models;
@@ -50,6 +51,9 @@ pub fn run() {
             commands::ensure_model,
             commands::cancel_model_download,
             commands::delete_model,
+            commands::cli_status,
+            commands::install_cli,
+            commands::uninstall_cli,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

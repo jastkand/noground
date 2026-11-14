@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { open, ask } from '@tauri-apps/plugin-dialog'
 import { useApp, formatBytes } from '../store'
 import { api } from '../api'
-import type { ModelInfo } from '../types'
+import type { CliStatus, ModelInfo } from '../types'
 
 const store = useApp()
+const cli = ref<CliStatus | null>(null)
 
 onMounted(async () => {
   store.models = await api.listModels()
+  cli.value = await api.getCliStatus()
 })
 
 const modelRows = computed(() =>
@@ -62,6 +64,22 @@ async function removeModel(model: ModelInfo) {
   try {
     await api.deleteModel(model.key)
     store.models = await api.listModels()
+  } catch (e) {
+    store.error = (e as { message?: string }).message ?? String(e)
+  }
+}
+
+async function installCli() {
+  try {
+    cli.value = await api.installCli()
+  } catch (e) {
+    store.error = (e as { message?: string }).message ?? String(e)
+  }
+}
+
+async function uninstallCli() {
+  try {
+    cli.value = await api.uninstallCli()
   } catch (e) {
     store.error = (e as { message?: string }).message ?? String(e)
   }
@@ -163,6 +181,32 @@ async function removeModel(model: ModelInfo) {
         </div>
       </div>
     </section>
+
+    <section class="panel settings">
+      <div class="row">
+        <div class="label">
+          Command-line tool
+          <p class="muted">
+            Runs the same pipeline in your Terminal — files or whole folders:
+            <code>noground photo.jpg</code>
+          </p>
+        </div>
+        <div class="control">
+          <button v-if="cli?.installed" class="danger" @click="uninstallCli">Remove</button>
+          <button v-else @click="installCli">Install</button>
+        </div>
+      </div>
+      <p v-if="cli?.target" class="path mono">
+        {{ cli.linkPath }} → {{ cli.target }}
+      </p>
+      <p v-if="cli?.installed && !cli.binDirOnPath" class="path muted">
+        Add <code>export PATH="$HOME/.local/bin:$PATH"</code> to your ~/.zshrc and open a new
+        Terminal window.
+      </p>
+      <p v-if="cli?.installed && cli.devBuild" class="path muted">
+        Dev build — use <code>noground cli …</code> until you install a release.
+      </p>
+    </section>
   </div>
 </template>
 
@@ -238,5 +282,9 @@ header h1 {
   font-size: 11px;
   word-break: break-all;
   user-select: text;
+}
+
+.mono {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
 }
 </style>
