@@ -34,14 +34,18 @@ jobs:
       - run: npm ci
 
       # the pushed tag is the single source of truth: stamp it into
-      # tauri.conf.json so getVersion() (sidebar), the bundle metadata and the
-      # dmg filename all match the release tag without a manual version bump
+      # tauri.conf.json (getVersion() in the sidebar, bundle metadata, dmg
+      # filename) and Cargo.toml (CARGO_PKG_VERSION, which the CLI's
+      # --version prints) so both match the release tag without a manual
+      # version bump
       - name: Stamp version from tag
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           export VERSION
           node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')"
+          node -e "const fs=require('fs');const p='src-tauri/Cargo.toml';fs.writeFileSync(p,fs.readFileSync(p,'utf8').replace(/^version = \".*\"$/m,'version = \"'+process.env.VERSION+'\"'))"
           grep '"version"' src-tauri/tauri.conf.json
+          grep '^version' src-tauri/Cargo.toml
 
       # unsigned build on purpose — no signing identity configured; users click
       # through Gatekeeper per the README "Install" section
